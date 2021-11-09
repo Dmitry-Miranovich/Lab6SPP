@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 
 namespace Lab6SPP
 {
@@ -8,8 +9,7 @@ namespace Lab6SPP
         static void Main()
         {
             LogBuffer log = new LogBuffer("D:\\Третий курс\\СПП\\Lab6SPP\\Log.txt");
-            log.CreateFile();
-            for(int i = 0; i<40; i++)
+            for(int i = 0; i<20; i++)
             {
                 log.Add($"Hello World! {i}");
             }

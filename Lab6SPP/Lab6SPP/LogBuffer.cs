@@ -16,10 +16,12 @@ namespace Lab6SPP
     public class LogBuffer
     {
         private List<string> log;
+        private TimerCallback tm;
+        private Timer timer;
+        private object timerBlock = new object();
         private string[] buffer, rsplBuffer;
         private int position = 0;
-        private bool isFileInUse = true;
-        private TimerCallback tm;
+        private bool isFileInUse = false;
         private const int LIMIT = 20;
         private string path;
         public int Size
@@ -36,10 +38,11 @@ namespace Lab6SPP
             log = new List<string>();
             buffer = new string[LIMIT];
             rsplBuffer = new string[LIMIT];
-            //tm = new TimerCallback(WriteBuffer);
-            //Timer timer = new Timer(tm, null, 0, 2000);
+            CreateFile();
+            //tm = new TimerCallback(WriteBufferInTime);
+            //timer = new Timer(tm, null, 0, 20); 
         }
-        public void CreateFile()
+        private void CreateFile()
         {
             try
             {
@@ -60,28 +63,41 @@ namespace Lab6SPP
             buffer[position++] = item;
             if (position >= buffer.Length)
             {
-                rsplBuffer = (string[])buffer.Clone();
+                string[] newBuffer = (string[])buffer.Clone();
+                WriteBufferAsync(newBuffer);
                 Reset();
-                Thread thread = new Thread(WriteBuffer);
-                thread.Start();
             }
         }
 
-        public void WriteBuffer(object s)
+        private Semaphore gate = new Semaphore(1,1);
+        public async void WriteBufferAsync(string[] buffer)
         {
-            while (isFileInUse)
+            Console.WriteLine("Выполнение записи файлов из буфера");
+            await Task.Run(() => WriteBuffer(buffer));
+            Console.WriteLine("Запись выполнена");
+        }
+
+        private void WriteBuffer(string [] buffer)
+        {
+            gate.WaitOne();
+            try
             {
-                try
-                {
-                    File.AppendAllLines(path, rsplBuffer);
-                    isFileInUse = false;
-                }
-                catch (IOException)
-                {
-                    //File is being used by another process
-                    //To prevent crushing our programm we evade our exeption by catch and in infinite loop wait, until appending is done
-                }
+                File.AppendAllLines(path, buffer);
+                Thread.Sleep(6000);
             }
+            catch (IOException ex)
+            {
+                throw new Exception(ex.Message);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        private void WriteBufferInTime(object s)
+        {
+           
         }
         private void Reset()
         {
