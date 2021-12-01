@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.IO;
@@ -11,62 +12,48 @@ namespace Lab6SPP
  /// <summary>
  /// Author Dmitry Miranovich
  /// Class LogBuffer
- /// status : Not Ready
+ /// status : Ready
  /// </summary>
     public class LogBuffer
     {
-        private List<string> log;
-        private TimerCallback tm;
         private Timer timer;
-        private object timerBlock = new object();
-        private string[] buffer, rsplBuffer;
+        private string[] buffer;
         private int position = 0;
-        private bool isFileInUse = false;
-        private const int LIMIT = 20;
+        private const int LIMIT = 50;
         private string path;
-        public int Size
-        {
-            get
-            {
-                return log.Count;
-            }
-        }
 
-        public LogBuffer(string path)
+        public LogBuffer()
+        {
+            buffer = new string[LIMIT];
+            timer = new Timer(new TimerCallback(WriteBufferInTimeAsync), null, 0,5000);
+        }
+        public void CreateFile(string path)
         {
             this.path = path;
-            log = new List<string>();
-            buffer = new string[LIMIT];
-            rsplBuffer = new string[LIMIT];
-            CreateFile();
-            //tm = new TimerCallback(WriteBufferInTime);
-            //timer = new Timer(tm, null, 0, 20); 
-        }
-        private void CreateFile()
-        {
-            try
-            {
-                using (FileStream stream = File.Create(path))
-                {
-                    stream.Close();
-                }
-            }
-            catch(Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
+            File.OpenWrite(path);
         }
 
         public void Add(string item)
         {
-            log.Add(item);
-            buffer[position++] = item;
-            if (position >= buffer.Length)
+            try
             {
-                string[] newBuffer = (string[])buffer.Clone();
-                WriteBufferAsync(newBuffer);
-                Reset();
+                item = string.Format(DateTime.Now + ": " + item);
+                buffer[position++] = item;
+                if (position >= buffer.Length)
+                {
+                    string[] newBuffer = (string[])buffer.Clone();
+                    WriteBufferAsync(newBuffer);
+                    Reset();
+                }
             }
+            catch(Exception ex)
+            {
+                using (StreamWriter writer = new StreamWriter(path))
+                {
+                    writer.WriteLine(DateTime.Now + ": "+ ex.Message);
+                }
+            }
+            
         }
 
         private Semaphore gate = new Semaphore(1,1);
@@ -74,18 +61,27 @@ namespace Lab6SPP
         {
             Console.WriteLine("Выполнение записи файлов из буфера");
             await Task.Run(() => WriteBuffer(buffer));
+            
+
             Console.WriteLine("Запись выполнена");
+        }
+        public async void WriteBufferInTimeAsync(object obj)
+        {
+            gate.WaitOne();
+            string[] secBuffer = (string[])buffer.Clone();
+            int bufSize = position;
+            await Task.Run(() => WriteBufferInTime(secBuffer, bufSize));
+            Reset();
         }
 
         private void WriteBuffer(string [] buffer)
         {
-            gate.WaitOne();
             try
             {
+                gate.WaitOne();
                 File.AppendAllLines(path, buffer);
-                Thread.Sleep(6000);
             }
-            catch (IOException ex)
+            catch (IOException ex) 
             {
                 throw new Exception(ex.Message);
             }
@@ -95,14 +91,29 @@ namespace Lab6SPP
             }
         }
 
-        private void WriteBufferInTime(object s)
+        private void WriteBufferInTime(string[] buffer, int bufSize)
         {
-           
+            try
+            {
+                if(bufSize > 0)
+                {
+                    Console.WriteLine("Выполнение записи файлов из буфера по таймеру");
+                    File.AppendAllLines(path, buffer);
+                    Console.WriteLine("Запись по таймеру выполнена");
+                }
+            }
+            catch (IOException ex)
+            {
+                throw new IOException(ex.Message);
+            }
+            finally
+            {
+                gate.Release();
+            }
         }
         private void Reset()
         {
             position = 0;
-            isFileInUse = true;
             for(int i = 0; i<buffer.Length; i++)
             {
                 buffer[i] = null;

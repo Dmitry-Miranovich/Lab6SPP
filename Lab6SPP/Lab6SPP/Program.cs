@@ -8,11 +8,14 @@ namespace Lab6SPP
     {
         static void Main()
         {
-            LogBuffer log = new LogBuffer("D:\\Третий курс\\СПП\\Lab6SPP\\Log.txt");
-            for(int i = 0; i<20; i++)
+            string path = "D:\\Третий курс\\СПП\\Lab6SPP\\Log.txt";
+            LogBuffer log = new LogBuffer();
+            log.CreateFile(path);
+            for(int i = 0; i<135; i++)
             {
                 log.Add($"Hello World! {i}");
             }
+            Console.ReadLine();
         }
     }
 }
